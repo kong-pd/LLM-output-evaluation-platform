@@ -7,4 +7,5 @@ export const getItems=(id,p=1)=>r(`/datasets/${id}/items?page=${p}&page_size=20`
 export const createAnnotation=(id,b)=>r(`/items/${id}/annotations`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});
 export const getAnnotations=id=>r(`/items/${id}/annotations`);
 export const getAgreement=id=>r(`/datasets/${id}/agreement`);
+export const getDifficulty=id=>r(`/datasets/${id}/difficulty`);
 export const exportReport=id=>window.open(`/api/datasets/${id}/export`);

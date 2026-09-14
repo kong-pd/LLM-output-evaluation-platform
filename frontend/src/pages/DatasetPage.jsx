@@ -1,20 +1,40 @@
-import{useState,useEffect}from"react";import{useParams}from"react-router-dom";import{getDataset,getItems,createAnnotation,getAnnotations,getAgreement,exportReport}from"../api";
+import{useState,useEffect}from"react";import{useParams}from"react-router-dom";import{getDataset,getItems,createAnnotation,getAnnotations,getAgreement,getDifficulty,exportReport}from"../api";
 
 function Badge({s}){if(s==null)return<span className="muted">—</span>;const v=Math.round(s*10)/10;const c=v>=4?"badge-green":v>=3?"badge-amber":"badge-red";return<span className={`badge ${c}`}>{v}</span>}
-
 function Pct({v}){if(v==null)return"—";return Math.round(v*100)+"%"}
+function Kappa({v}){if(v==null)return<span className="muted">—</span>;const c=v>=0.8?"badge-green":v>=0.6?"badge-green":v>=0.4?"badge-amber":"badge-red";const label=v>=0.8?"almost perfect":v>=0.6?"substantial":v>=0.4?"moderate":v>=0.2?"fair":"slight";return<span className={`badge ${c}`}>{v} ({label})</span>}
+function Diff({d}){const c=d==="hard"?"badge-red":d==="medium"?"badge-amber":"badge-green";return<span className={`badge ${c}`}>{d}</span>}
 
 function AgreementPanel({id}){
 const[data,setData]=useState(null);
 useEffect(()=>{const load=()=>getAgreement(id).then(setData).catch(()=>{});load();const iv=setInterval(load,3000);return()=>clearInterval(iv)},[id]);
 if(!data||!data.total_annotations)return null;
-const dims=Object.entries(data.per_dimension);
+const dims=Object.entries(data.per_dimension||{});
+const cm=data.confusion_matrix||[];
 return(<div style={{border:"1px solid #e5e5e5",padding:16,borderRadius:6,marginTop:16}}>
 <h2 style={{marginBottom:8}}>Agreement analysis</h2>
 <p className="muted">{data.total_annotations} annotations · {data.agree_count} agree · {data.override_count} override</p>
-<p style={{marginTop:8}}>Exact match: <b><Pct v={data.exact_match_rate}/></b> · Within ±1: <b><Pct v={data.close_match_rate}/></b></p>
-{dims.length>0&&<table style={{marginTop:12}}><thead><tr><th>Dimension</th><th>Annotations</th><th>Exact match</th><th>Avg auto</th><th>Avg human</th></tr></thead>
-<tbody>{dims.map(([d,v])=><tr key={d}><td style={{fontWeight:500}}>{d}</td><td>{v.count}</td><td><Pct v={v.exact_match_rate}/></td><td>{v.avg_auto}</td><td>{v.avg_human}</td></tr>)}</tbody></table>}
+<p style={{marginTop:8}}>Exact match: <b><Pct v={data.exact_match_rate}/></b> · Within ±1: <b><Pct v={data.close_match_rate}/></b> · Cohen's κ: <Kappa v={data.cohens_kappa}/></p>
+
+{dims.length>0&&<table style={{marginTop:12}}><thead><tr><th>Dimension</th><th>Count</th><th>Exact</th><th>±1</th><th>κ</th><th>Avg auto</th><th>Avg human</th></tr></thead>
+<tbody>{dims.map(([d,v])=><tr key={d}><td style={{fontWeight:500}}>{d}</td><td>{v.count}</td><td><Pct v={v.exact_match_rate}/></td><td><Pct v={v.close_match_rate}/></td><td><Kappa v={v.cohens_kappa}/></td><td>{v.avg_auto}</td><td>{v.avg_human}</td></tr>)}</tbody></table>}
+
+{cm.length>0&&<div style={{marginTop:16}}><h3 style={{fontSize:14,marginBottom:8}}>Confusion matrix (auto ↓ vs human →)</h3>
+<table><thead><tr><th>Auto\Human</th>{[1,2,3,4,5].map(h=><th key={h} style={{textAlign:"center"}}>{h}</th>)}</tr></thead>
+<tbody>{cm.map(row=><tr key={row.auto_score}><td style={{fontWeight:500}}>{row.auto_score}</td>{[1,2,3,4,5].map(h=>{const v=row[`human_${h}`];return<td key={h} style={{textAlign:"center",background:v>0?(row.auto_score===h?"#dcfce7":"#fef3c7"):"transparent",fontWeight:v>0?600:400}}>{v||"·"}</td>})}</tr>)}</tbody></table></div>}
+</div>)}
+
+function DifficultyPanel({id}){
+const[data,setData]=useState(null);
+useEffect(()=>{getDifficulty(id).then(setData).catch(()=>{})},[id]);
+if(!data||!data.items||!data.items.length)return null;
+const hard=data.items.filter(i=>i.difficulty!=="easy");
+if(!hard.length)return null;
+return(<div style={{border:"1px solid #e5e5e5",padding:16,borderRadius:6,marginTop:16}}>
+<h2 style={{marginBottom:8}}>Difficult items</h2>
+<p className="muted">Items that scored ≤3.5 on average, sorted hardest first</p>
+<table style={{marginTop:8}}><thead><tr><th>#</th><th>Question</th><th>Avg</th><th>Weakest</th><th>Difficulty</th></tr></thead>
+<tbody>{hard.map(i=><tr key={i.row}><td>{i.row}</td><td style={{maxWidth:300,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{i.question}</td><td><Badge s={i.avg_score}/></td><td className="muted">{i.weakest_dimension}</td><td><Diff d={i.difficulty}/></td></tr>)}</tbody></table>
 </div>)}
 
 function Review({item,onDone}){const dims=["faithfulness","relevance","coherence"];const auto={faithfulness:item.auto_faithfulness,relevance:item.auto_relevance,coherence:item.auto_coherence};
@@ -33,11 +53,9 @@ useEffect(()=>{getDataset(id).then(setDs)},[id]);
 useEffect(()=>{const load=()=>getItems(id,page).then(d=>{setItems(d.items);setTotal(d.total)}).catch(()=>{});load();const iv=setInterval(load,3000);return()=>clearInterval(iv)},[id,page]);
 if(!ds)return<p className="muted">Loading...</p>;const pages=Math.ceil(total/20);
 return(<div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-<h1>{ds.name}</h1>
-<button onClick={()=>exportReport(id)}>Export CSV</button>
-</div>
+<h1>{ds.name}</h1><button onClick={()=>exportReport(id)}>Export CSV</button></div>
 <p className="muted">{ds.status} · {ds.evaluated_items}/{ds.total_items} evaluated · {ds.annotated_items}/{ds.total_items} annotated</p>
-<AgreementPanel id={id}/>
+<AgreementPanel id={id}/><DifficultyPanel id={id}/>
 {rev&&<Review item={rev} onDone={()=>{setRev(null);getItems(id,page).then(d=>{setItems(d.items);setTotal(d.total)})}}/>}
 <table><thead><tr><th>#</th><th>Question</th><th>Faith.</th><th>Relev.</th><th>Coher.</th><th>Status</th><th></th></tr></thead>
 <tbody>{items.map(i=><tr key={i.id}><td>{i.row_index+1}</td><td style={{maxWidth:300,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{i.question}</td><td><Badge s={i.auto_faithfulness}/></td><td><Badge s={i.auto_relevance}/></td><td><Badge s={i.auto_coherence}/></td><td className="muted">{i.auto_eval_status}</td><td>{i.auto_eval_status==="done"&&<button onClick={()=>setRev(i)}>Review</button>}</td></tr>)}</tbody></table>
