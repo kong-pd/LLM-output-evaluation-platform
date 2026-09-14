@@ -1,22 +1,8 @@
-# Python
+node_modules/
 __pycache__/
 *.pyc
-*.pyo
 .pytest_cache/
-*.egg-info/
-venv/
-.venv/
-
-# Database (SQLite file, don't commit)
 *.db
-
-# IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Environment
 .env
+.DS_Store
+dist/

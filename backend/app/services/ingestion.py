@@ -1,18 +1,14 @@
 import csv
 import io
 from dataclasses import dataclass
-
 from sqlalchemy.orm import Session
 from app.models.database import Dataset, EvalItem, generate_id
 
 REQUIRED_COLUMNS = {"question", "llm_answer"}
 OPTIONAL_COLUMNS = {"context"}
 COLUMN_ALIASES = {
-    "answer": "llm_answer",
-    "response": "llm_answer",
-    "llm_response": "llm_answer",
-    "output": "llm_answer",
-    "llm_output": "llm_answer",
+    "answer": "llm_answer", "response": "llm_answer",
+    "llm_response": "llm_answer", "output": "llm_answer", "llm_output": "llm_answer",
 }
 
 
@@ -27,8 +23,8 @@ class IngestionError(Exception):
     pass
 
 
-def _normalize_columns(raw_headers: list[str]) -> dict[str, str]:
-    mapping: dict[str, str] = {}
+def _normalize_columns(raw_headers):
+    mapping = {}
     for raw in raw_headers:
         clean = raw.strip().lower().replace(" ", "_")
         if clean in (REQUIRED_COLUMNS | OPTIONAL_COLUMNS):
@@ -38,9 +34,8 @@ def _normalize_columns(raw_headers: list[str]) -> dict[str, str]:
     return mapping
 
 
-def ingest_csv(file_bytes: bytes, filename: str, db: Session) -> IngestionResult:
-    warnings: list[str] = []
-
+def ingest_csv(file_bytes, filename, db: Session):
+    warnings = []
     try:
         text = file_bytes.decode("utf-8-sig")
     except UnicodeDecodeError:
@@ -54,10 +49,7 @@ def ingest_csv(file_bytes: bytes, filename: str, db: Session) -> IngestionResult
     col_map = _normalize_columns(list(reader.fieldnames))
     missing = REQUIRED_COLUMNS - set(col_map.keys())
     if missing:
-        raise IngestionError(
-            f"CSV is missing required columns: {', '.join(sorted(missing))}. "
-            f"Found columns: {', '.join(reader.fieldnames)}"
-        )
+        raise IngestionError(f"Missing required columns: {', '.join(sorted(missing))}. Found: {', '.join(reader.fieldnames)}")
 
     has_context = "context" in col_map
     dataset = Dataset(id=generate_id(), name=filename)
@@ -68,20 +60,9 @@ def ingest_csv(file_bytes: bytes, filename: str, db: Session) -> IngestionResult
         question = (row.get(col_map["question"]) or "").strip()
         llm_answer = (row.get(col_map["llm_answer"]) or "").strip()
         context = (row.get(col_map.get("context", ""), "") or "").strip() if has_context else ""
-
         if not question and not llm_answer:
-            warnings.append(f"Row {idx + 2} skipped: both question and llm_answer are empty.")
             continue
-
-        item = EvalItem(
-            id=generate_id(),
-            dataset_id=dataset.id,
-            row_index=idx,
-            question=question,
-            context=context,
-            llm_answer=llm_answer,
-        )
-        db.add(item)
+        db.add(EvalItem(id=generate_id(), dataset_id=dataset.id, row_index=idx, question=question, context=context, llm_answer=llm_answer))
         rows_imported += 1
 
     if rows_imported == 0:
