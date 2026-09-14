@@ -6,7 +6,7 @@ function Pct({v}){if(v==null)return"—";return Math.round(v*100)+"%"}
 
 function AgreementPanel({id}){
 const[data,setData]=useState(null);
-useEffect(()=>{getAgreement(id).then(setData).catch(()=>{})},[id]);
+useEffect(()=>{const load=()=>getAgreement(id).then(setData).catch(()=>{});load();const iv=setInterval(load,3000);return()=>clearInterval(iv)},[id]);
 if(!data||!data.total_annotations)return null;
 const dims=Object.entries(data.per_dimension);
 return(<div style={{border:"1px solid #e5e5e5",padding:16,borderRadius:6,marginTop:16}}>
