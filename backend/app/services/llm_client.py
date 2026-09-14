@@ -31,7 +31,7 @@ def _build_chain():
     claude_key = os.getenv("ANTHROPIC_API_KEY", "")
 
     if gemini_key:
-        for model in ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite"]:
+        for model in ["gemini-3.6-flash", "gemini-2.5-flash"]:
             chain.append(Provider(model, "gemini", model, gemini_key))
     if grok_key:
         chain.append(Provider("grok-3-mini-fast", "grok", "grok-3-mini-fast", grok_key))
@@ -88,8 +88,12 @@ _CALLERS = {"gemini": _call_gemini, "grok": _call_grok, "claude": _call_claude}
 
 def _parse_score(raw):
     text = raw.strip()
+
+    # Strip markdown code blocks
     if "```" in text:
         text = re.sub(r"```\w*\n?", "", text).strip()
+
+    # Try to find and parse a JSON object
     match = re.search(r"\{[^{}]+\}", text)
     if match:
         json_str = match.group(0).replace("'", '"')
@@ -100,17 +104,21 @@ def _parse_score(raw):
                 return {"score": float(score), "reason": str(obj.get("reason", "")), "model": ""}
         except json.JSONDecodeError:
             pass
+
+    # Last resort: regex for the score number
     match = re.search(r'"?score"?\s*[:=]\s*(\d(?:\.\d)?)', text)
     if match:
         score = float(match.group(1))
         if 1 <= score <= 5:
             return {"score": score, "reason": "", "model": ""}
+
     raise ValueError(f"Cannot extract score from: {text[:120]}")
 
 
 async def get_score(system_prompt, user_prompt, **kwargs):
     if not FALLBACK_CHAIN:
         raise LLMClientError("No API keys configured. Set at least one of: GEMINI_API_KEY, GROK_API_KEY, ANTHROPIC_API_KEY")
+
     errors = []
     for p in FALLBACK_CHAIN:
         try:
@@ -121,4 +129,5 @@ async def get_score(system_prompt, user_prompt, **kwargs):
         except Exception as e:
             logger.warning(f"Fallback — {p.name}: {e}")
             errors.append(f"{p.name}: {e}")
+
     raise LLMClientError("All providers failed:\n" + "\n".join(f"  - {e}" for e in errors))

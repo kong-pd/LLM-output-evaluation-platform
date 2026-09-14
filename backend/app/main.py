@@ -4,12 +4,13 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.models.database import init_db
-from app.routers import datasets, annotations
+from app.routers import datasets, annotations, analysis
 
-app = FastAPI(title="LLM Eval Platform", version="0.3.0")
+app = FastAPI(title="LLM Eval Platform", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://localhost:3000"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(datasets.router)
 app.include_router(annotations.router)
+app.include_router(analysis.router)
 
 
 @app.on_event("startup")

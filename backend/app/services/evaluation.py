@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from sqlalchemy.orm import Session
 from app.models.database import Dataset, EvalItem, SessionLocal
@@ -19,7 +18,6 @@ async def evaluate_item(item, db):
             result = await get_score(SYSTEM_PROMPT, prompt)
             scores[dim] = result["score"]
             model_used = result.get("model", "")
-            await asyncio.sleep(1)
         item.auto_faithfulness = scores["faithfulness"]
         item.auto_relevance = scores["relevance"]
         item.auto_coherence = scores["coherence"]
@@ -40,6 +38,7 @@ async def evaluate_dataset(dataset_id):
             return
         dataset.status = "evaluating"
         db.commit()
+
         items = db.query(EvalItem).filter(EvalItem.dataset_id == dataset_id, EvalItem.auto_eval_status == "pending").order_by(EvalItem.row_index).all()
         done = 0
         for item in items:
@@ -48,6 +47,7 @@ async def evaluate_dataset(dataset_id):
                 done += 1
             dataset.evaluated_items = done
             db.commit()
+
         dataset.status = "evaluated"
         db.commit()
     except Exception as e:
