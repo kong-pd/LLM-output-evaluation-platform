@@ -1,73 +1,48 @@
 # LLM Output Evaluation Platform
 
-A tool for answering the question: **"Are these LLM responses actually good?"**
+A tool for evaluating LLM-generated responses — with extra support for RAG pipelines. Upload a dataset of question-answer pairs, get automatic quality scores via LLM-as-judge, layer on human annotation, then see how well the two agree. When scores are low, the platform classifies what went wrong and points at the pipeline stage responsible.
 
-I built this because I realized after doing [golden-set eval in GreenCheck](https://github.com/kong-pd/greenwashing-detector) that there wasn't a clean, lightweight way to batch-evaluate LLM outputs with both automated scoring and human review. Every tool I found was either enterprise-grade overkill or a Jupyter notebook someone abandoned.
+I built this to explore a question that comes up a lot in LLM development: when you use one model to judge another model's output, how much can you trust the scores? The human annotation layer lets you find out — you review the auto-generated scores, agree or override them, and the platform computes Cohen's Kappa to quantify agreement. The RAG-specific dimensions (context relevance, groundedness) and root cause analysis were my first attempt at going beyond "the answer is bad" toward "here's why, and which part of the pipeline to fix."
 
-## What it does
+## How It Works
 
-You upload a CSV of LLM-generated responses. The system auto-scores each one on three dimensions (faithfulness, relevance, coherence) using LLM-as-judge. Then you can go through the results, agree or override the auto scores, and the system tracks how often humans and the auto-scorer agree. At the end you export a report.
+1. **Upload** a CSV with `question`, `context`, and `llm_answer` columns.
+2. The backend sends each row to an LLM judge (Gemini → Groq → Claude fallback chain) and scores it on up to five dimensions (1–5 scale):
+   - **All rows:** faithfulness, relevance, coherence
+   - **Rows with context:** also context relevance (rates the retriever) and groundedness (does the answer actually use the context?)
+   - Low-scoring items get an automatic error classification — hallucination, contradiction, incomplete, off-topic, or poor reasoning.
+3. Open the **annotation UI** to review each score — agree with it, or override with your own.
+4. The **analysis panels** show:
+   - **Agreement:** exact match rate, ±1 match rate, Cohen's Kappa (overall and per-dimension), confusion matrix
+   - **Root cause analysis:** error type breakdown, average scores per dimension, pipeline diagnosis (tells you whether the retriever or generator is the likely problem)
+   - **Difficulty ranking:** items sorted by average score, tagged hard/medium/easy with their weakest dimension
+5. **Export** everything as a CSV report with auto scores, human scores, and error types.
 
-That's it. No model training, no fine-tuning, no ML pipeline. It's a quality inspection tool that happens to use an LLM as the inspector.
-
-## Architecture decisions and why
-
-**SQLite instead of PostgreSQL** — for an MVP this removes an entire infrastructure dependency. The data model uses SQLAlchemy ORM so switching to Postgres later is a one-line change.
-
-**LLM-as-judge with rubric prompts** — instead of training a scoring model (which needs labeled data I don't have), I give the judge LLM a structured rubric with explicit 1-5 criteria. The rubric is domain-agnostic — faithfulness just checks whether the answer matches the provided context, regardless of whether the context is about medicine or customer support.
-
-**Gemini → Grok → Claude fallback chain** — free-tier APIs have rate limits and outages. The system tries providers in order and falls back automatically. Gemini Lite handles most requests within the free quota.
-
-**BackgroundTasks over Celery** — FastAPI's built-in BackgroundTasks is plenty for MVP-scale. No Redis, no message broker, no extra infrastructure. The frontend polls every 3 seconds to show progress.
-
-**Three scoring dimensions** — faithfulness (does it match the source?), relevance (does it answer the question?), coherence (is it well-written?). These are the standard dimensions from LLM evaluation literature and they work across domains because the context column carries the domain knowledge.
-
-## How to run
+## Setup
 
 ```bash
-# Backend
+# backend
 cd backend
 pip install -r requirements.txt
-cp .env.example .env        # add at least GEMINI_API_KEY
-uvicorn app.main:app --reload
+cp .env.example .env          # add your API key(s)
+uvicorn app.main:app --reload # localhost:8000
 
-# Frontend (separate terminal)
+# frontend
 cd frontend
 npm install
-npm run dev
+npm run dev                   # localhost:5173
 ```
 
-Open http://localhost:5173. Upload `backend/tests/sample_data.csv` to see it work.
-
-Get a free Gemini API key at https://aistudio.google.com/apikey.
-
-## What the CSV looks like
-
-```csv
-question,context,llm_answer
-What are your hours?,Open Mon-Fri 9-6. Weekend email only.,We're open 24/7!
-```
-
-- `question` — what was asked
-- `context` — the source of truth (optional but needed for faithfulness scoring)
-- `llm_answer` — what the LLM responded
-
-The system also accepts `answer`, `response`, `output` as column name aliases.
-
-## What's not great
-
-**No retry for failed items.** If Gemini rate-limits mid-batch, those items stay as "error". You'd have to re-upload. A retry button is the obvious next feature.
-
-**Agreement metrics are basic.** I'm using exact match rate and ±1 tolerance. Cohen's Kappa would be more statistically rigorous for measuring inter-rater reliability, but for an MVP the simple metrics tell you enough.
-
-**Single annotator.** There's no user system — anyone who opens the UI can annotate. Multi-annotator support with inter-annotator agreement would make this more credible for actual research use.
-
-**No caching on LLM calls.** Re-uploading the same CSV scores everything from scratch. Could hash the inputs and skip already-scored items.
+API docs at http://localhost:8000/docs
 
 ## Stack
 
-FastAPI · SQLAlchemy · SQLite · React · Vite · Gemini/Grok/Claude APIs
+**Backend:** Python · FastAPI · SQLAlchemy · SQLite
 
-## What I learned
+**Frontend:** React · Vite · React Router
 
-This was my first data-oriented project. The biggest lesson was that the hard part isn't the ML — it's designing evaluation criteria that are consistent and meaningful, and building the pipeline so it doesn't block the UI while processing. The LLM-as-judge approach is surprisingly effective when you give it a clear rubric, but the rubric design matters more than the model choice.
+**Evaluation:** LLM-as-judge with multi-model fallback (Gemini → Groq → Claude)
+
+## License
+
+MIT
