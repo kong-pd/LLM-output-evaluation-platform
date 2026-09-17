@@ -33,8 +33,52 @@ LLM Answer: {llm_answer}
 
 JSON only:"""
 
+CONTEXT_RELEVANCE_PROMPT = """Rate the CONTEXT RELEVANCE (1-5). This evaluates the RETRIEVER, not the answer.
+Is the provided context actually relevant to answering this question?
+1=completely irrelevant context, 2=barely related, 3=somewhat relevant, 4=mostly relevant, 5=perfectly relevant
+
+Question: {question}
+Context: {context}
+LLM Answer: {llm_answer}
+
+JSON only:"""
+
+GROUNDEDNESS_PROMPT = """Rate the GROUNDEDNESS of this answer (1-5).
+Does the answer actually USE the provided context, or does it ignore it and make things up?
+1=completely ignores context, 2=barely uses context, 3=partially grounded, 4=mostly grounded, 5=fully grounded in context
+
+Question: {question}
+Context: {context}
+LLM Answer: {llm_answer}
+
+JSON only:"""
+
 DIMENSION_PROMPTS = {
     "faithfulness": FAITHFULNESS_PROMPT,
     "relevance": RELEVANCE_PROMPT,
     "coherence": COHERENCE_PROMPT,
+    "context_relevance": CONTEXT_RELEVANCE_PROMPT,
+    "groundedness": GROUNDEDNESS_PROMPT,
 }
+
+ERROR_CLASSIFICATION_SYSTEM = (
+    "You are an error classifier for LLM outputs. "
+    "Given a question, context, and a low-quality LLM answer, classify the PRIMARY error type. "
+    "Respond with ONLY a valid JSON object. No other text."
+)
+
+ERROR_CLASSIFICATION_PROMPT = """Classify the PRIMARY error type of this LLM answer.
+
+Error types:
+- hallucination: answer contains facts not in the context (made things up)
+- contradicts: answer directly contradicts the context
+- incomplete: answer is partially correct but missing key information
+- off_topic: answer does not address the question at all
+- poor_reasoning: answer uses flawed logic or draws wrong conclusions
+- no_error: answer is acceptable despite low auto-score
+
+Question: {question}
+Context: {context}
+LLM Answer: {llm_answer}
+
+Respond with ONLY: {{"error_type": "<type>", "reason": "<brief explanation>"}}"""

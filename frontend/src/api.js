@@ -8,4 +8,5 @@ export const createAnnotation=(id,b)=>r(`/items/${id}/annotations`,{method:"POST
 export const getAnnotations=id=>r(`/items/${id}/annotations`);
 export const getAgreement=id=>r(`/datasets/${id}/agreement`);
 export const getDifficulty=id=>r(`/datasets/${id}/difficulty`);
+export const getRCA=id=>r(`/datasets/${id}/rca`);
 export const exportReport=id=>window.open(`/api/datasets/${id}/export`);

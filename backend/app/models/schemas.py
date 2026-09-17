@@ -24,6 +24,9 @@ class EvalItemOut(BaseModel):
     auto_faithfulness: float | None
     auto_relevance: float | None
     auto_coherence: float | None
+    auto_context_relevance: float | None
+    auto_groundedness: float | None
+    auto_error_type: str | None
     auto_eval_status: str
     auto_eval_model: str | None
     auto_eval_error: str | None

@@ -11,14 +11,18 @@ def create_annotation(item_id: str, body: AnnotationCreate, db: Session = Depend
     item = db.get(EvalItem, item_id)
     if not item:
         raise HTTPException(404, "Eval item not found.")
-    if body.dimension not in ("faithfulness", "relevance", "coherence"):
+    if body.dimension not in ("faithfulness", "relevance", "coherence", "context_relevance", "groundedness"):
         raise HTTPException(400, "Invalid dimension.")
     if body.action not in ("agree", "disagree", "override"):
         raise HTTPException(400, "Invalid action.")
     if not (1 <= body.human_score <= 5):
         raise HTTPException(400, "Score must be 1-5.")
 
-    auto_score = {"faithfulness": item.auto_faithfulness, "relevance": item.auto_relevance, "coherence": item.auto_coherence}[body.dimension]
+    auto_score = {
+        "faithfulness": item.auto_faithfulness, "relevance": item.auto_relevance,
+        "coherence": item.auto_coherence, "context_relevance": item.auto_context_relevance,
+        "groundedness": item.auto_groundedness,
+    }[body.dimension]
     if auto_score is None:
         raise HTTPException(400, "Item not yet evaluated.")
 
